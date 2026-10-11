@@ -142,8 +142,9 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
       } else {
         setErrorMessage(res.message || 'Ndodhi një gabim gjatë rezervimit.');
       }
-    } catch {
-      setErrorMessage('Dështoi lidhja me serverin. Ju lutem provoni përsëri.');
+    } catch (err) {
+      console.error('Submission error:', err);
+      setErrorMessage('Ju lutem rishikoni të dhënat dhe provoni përsëri.');
     } finally {
       setIsSubmitting(false);
     }

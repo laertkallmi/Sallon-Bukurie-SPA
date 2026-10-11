@@ -1,6 +1,54 @@
 {
   "appointments": [
     {
+      "id": "ELG-8879",
+      "clientName": "Kliente nga Telefoni",
+      "clientPhone": "+355695554443",
+      "clientEmail": "",
+      "serviceId": "hair",
+      "serviceName": "Stilim & Prerje Flokësh",
+      "servicePrice": 35,
+      "serviceDuration": 60,
+      "date": "2026-10-14",
+      "time": "15:00",
+      "notes": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-11T14:38:21.386Z",
+      "createdBy": "client"
+    },
+    {
+      "id": "ELG-3440",
+      "clientName": "Nginx Test",
+      "clientPhone": "0691234567",
+      "clientEmail": "",
+      "serviceId": "hair",
+      "serviceName": "Stilim & Prerje Flokësh",
+      "servicePrice": 35,
+      "serviceDuration": 60,
+      "date": "2026-10-15",
+      "time": "14:00",
+      "notes": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-11T14:34:57.664Z",
+      "createdBy": "client"
+    },
+    {
+      "id": "ELG-7025",
+      "clientName": "Test Klient",
+      "clientPhone": "0691234567",
+      "clientEmail": "",
+      "serviceId": "hair",
+      "serviceName": "Stilim & Prerje Flokësh",
+      "servicePrice": 35,
+      "serviceDuration": 60,
+      "date": "2026-10-15",
+      "time": "12:00",
+      "notes": "",
+      "status": "confirmed",
+      "createdAt": "2026-10-11T14:34:42.017Z",
+      "createdBy": "client"
+    },
+    {
       "id": "ELG-7785",
       "clientName": "Besa Kelmendi",
       "clientPhone": "+355694433221",
@@ -138,5 +186,5 @@
       "createdAt": "2026-10-11T12:39:47.904Z"
     }
   ],
-  "lastUpdated": "2026-10-11T13:21:21.333Z"
+  "lastUpdated": "2026-10-11T14:38:21.386Z"
 }
