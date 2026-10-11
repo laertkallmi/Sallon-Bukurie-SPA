@@ -1,0 +1,6 @@
+{
+  "name": "Elegance Salon Bukurie - Kalendari Online",
+  "description": "Sistem modern dhe elegant rezervimesh online për sallon bukurie për femra me sinkronizim në kohë reale dhe panel administratori.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
