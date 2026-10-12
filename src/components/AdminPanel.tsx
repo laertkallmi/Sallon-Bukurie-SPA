@@ -230,6 +230,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
     }
   };
 
+  const getLocalizedServiceName = (serviceId?: string, fallbackName: string = '') => {
+    if (!serviceId) return fallbackName;
+    return (t.services as any)[serviceId]?.name || fallbackName;
+  };
+
   return (
     <div className="min-h-screen bg-stone-50/60 pb-20">
       
@@ -246,7 +251,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
             </h5>
             <p className="text-xs text-stone-600 mt-0.5">
               <strong>{newBookingAlert.clientName}</strong> {t.admin.newBookingToastDesc}{' '}
-              <strong>{newBookingAlert.serviceName}</strong> ({newBookingAlert.date} • {newBookingAlert.time}).
+              <strong>{getLocalizedServiceName(newBookingAlert.serviceId, newBookingAlert.serviceName)}</strong> ({newBookingAlert.date} • {newBookingAlert.time}).
             </p>
           </div>
           <button
@@ -467,7 +472,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h4 className="text-base font-bold text-stone-900">{item.clientName}</h4>
                                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-pink-100 text-pink-700">
-                                  {item.serviceName}
+                                  {getLocalizedServiceName(item.serviceId, item.serviceName)}
                                 </span>
                                 <span className="text-xs font-bold text-stone-900 bg-stone-100 px-2 py-0.5 rounded-md">
                                   {item.servicePrice} €
@@ -510,7 +515,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                             {/* WhatsApp button */}
                             <a
                               href={`https://wa.me/${item.clientPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                                `Elegance Salon: ${item.clientName}, ${item.time} - ${item.serviceName}.`
+                                `Elegance Salon: ${item.clientName}, ${item.time} - ${getLocalizedServiceName(item.serviceId, item.serviceName)}.`
                               )}`}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -639,7 +644,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                           <div>
                             <h5 className="font-bold text-stone-900 text-sm">{item.clientName}</h5>
                             <p className="text-xs text-stone-500">
-                              {item.serviceName} • {item.clientPhone} • {item.servicePrice} €
+                              {getLocalizedServiceName(item.serviceId, item.serviceName)} • {item.clientPhone} • {item.servicePrice} €
                             </p>
                           </div>
                         </div>
@@ -751,7 +756,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                       {bookedAppt ? (
                         <div className="text-xs text-stone-600 my-2">
                           <p className="font-semibold text-stone-900 truncate">{bookedAppt.clientName}</p>
-                          <p className="text-[11px] text-stone-500">{bookedAppt.serviceName}</p>
+                          <p className="text-[11px] text-stone-500">{getLocalizedServiceName(bookedAppt.serviceId, bookedAppt.serviceName)}</p>
                         </div>
                       ) : (
                         <div className="text-xs text-stone-400 my-2">
@@ -883,7 +888,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                           </td>
 
                           <td className="py-3.5 px-4 font-medium text-pink-700">
-                            {appt.serviceName}
+                            {getLocalizedServiceName(appt.serviceId, appt.serviceName)}
                           </td>
 
                           <td className="py-3.5 px-4 font-bold text-stone-900">

@@ -694,7 +694,9 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 <div className="grid grid-cols-2 gap-4 pb-4 border-b border-pink-100">
                   <div>
                     <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">{t.serviceConfirmedLabel}</span>
-                    <strong className="text-sm text-pink-600">{confirmedAppointment.serviceName}</strong>
+                    <strong className="text-sm text-pink-600">
+                      {(t.services as any)[confirmedAppointment.serviceId]?.name || confirmedAppointment.serviceName}
+                    </strong>
                   </div>
                   <div>
                     <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">{t.priceLabel}</span>
