@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, X, AlertCircle } from 'lucide-react';
 import { verifyAdminCode } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  const { t } = useLanguage();
   const [pin, setPin] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -42,7 +44,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     if (isValid) {
       onSuccess();
     } else {
-      setError('Kodi 6-shifror është i pasaktë! Provoni përsëri.');
+      setError(t.wrongPinError);
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
       setPin('');
@@ -91,10 +93,10 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           </div>
 
           <h3 className="font-serif-luxury text-xl font-bold tracking-wide">
-            Hyrja e Administratorit
+            {t.adminLoginTitle}
           </h3>
           <p className="text-xs text-pink-100 mt-1">
-            Vendosni kodin 6-shifror të sigurisë për të hyrë në panel.
+            {t.adminLoginDesc}
           </p>
         </div>
 
@@ -143,7 +145,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               disabled={isVerifying}
               className="h-14 rounded-2xl bg-white hover:bg-stone-50 text-stone-500 font-medium text-xs border border-pink-100 flex items-center justify-center transition-colors"
             >
-              Pastro
+              {t.clearBtn}
             </button>
 
             <button
@@ -161,14 +163,14 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               disabled={isVerifying}
               className="h-14 rounded-2xl bg-white hover:bg-rose-50 text-rose-600 font-semibold text-xs border border-pink-100 flex items-center justify-center transition-colors"
             >
-              Fshi
+              {t.deleteBtn}
             </button>
           </div>
 
           {isVerifying && (
             <div className="mt-4 flex items-center justify-center gap-2 text-xs font-semibold text-pink-600">
               <div className="w-3.5 h-3.5 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
-              <span>Duke verifikuar kodin...</span>
+              <span>{t.adminLoginVerifying}</span>
             </div>
           )}
         </div>

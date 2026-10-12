@@ -8,8 +8,9 @@ import { SalonServicesOverview } from './components/SalonServicesOverview';
 import { Footer } from './components/Footer';
 import { Appointment, BlockedSlot, SalonService } from './types/salon';
 import { fetchAppointments, fetchBlockedSlots } from './services/api';
+import { LanguageProvider } from './context/LanguageContext';
 
-export default function App() {
+function SalonApp() {
   const [activeTab, setActiveTab] = useState<'booking' | 'admin' | 'services'>('booking');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('salon_admin_auth') === 'true';
@@ -142,5 +143,13 @@ export default function App() {
       />
 
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <SalonApp />
+    </LanguageProvider>
   );
 }

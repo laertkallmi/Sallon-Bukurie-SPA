@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles, MapPin, Phone, Mail, Clock, Lock, Heart, ShieldCheck } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface FooterProps {
   onOpenAdmin: () => void;
@@ -7,6 +8,8 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, isAdminLoggedIn }) => {
+  const { t } = useLanguage();
+
   return (
     <footer className="bg-stone-900 text-stone-300 pt-16 pb-12 border-t border-pink-900/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -23,44 +26,42 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, isAdminLoggedIn }) 
               </span>
             </div>
             <p className="text-xs text-stone-400 leading-relaxed font-light">
-              Salloni lider për femra dedikuar kujdesit dhe bukurisë suaj. Eksperiencë luksoze, produkte elitare dhe stilistë të specializuar.
+              {t.footerBio}
             </p>
             <div className="flex items-center gap-3 pt-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-800 text-[11px] text-pink-400 border border-stone-700">
                 <Heart className="w-3 h-3 fill-pink-500 text-pink-500" />
-                Besueshmëri 100%
+                {t.trustBadge}
               </span>
             </div>
           </div>
 
           {/* Shërbimet Kryesore */}
           <div className="space-y-3">
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider">Shërbimet Tona</h4>
+            <h4 className="text-sm font-bold text-white uppercase tracking-wider">{t.ourServices}</h4>
             <ul className="space-y-2 text-xs text-stone-400">
-              <li>• Stilim & Prerje Flokësh</li>
-              <li>• Zgjatime Flokësh (Keratinë / Tape)</li>
-              <li>• Grim Profesional (Glamour / Nusesh)</li>
-              <li>• Manikyr me Xhel & Tipsa</li>
-              <li>• Zgjatim Qerpikësh (3D - 6D Volume)</li>
+              <li>• {t.services.hair.name}</li>
+              <li>• {t.services.extension.name}</li>
+              <li>• {t.services.makeup.name}</li>
+              <li>• {t.services.nails.name}</li>
+              <li>• {t.services.eyelashes.name}</li>
             </ul>
           </div>
 
           {/* Orari & Lokacioni */}
           <div className="space-y-3">
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider">Orari i Punës</h4>
+            <h4 className="text-sm font-bold text-white uppercase tracking-wider">{t.workingHoursTitle}</h4>
             <div className="space-y-2 text-xs text-stone-400">
               <div className="flex items-start gap-2">
                 <Clock className="w-4 h-4 text-pink-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-stone-200 font-medium">E Hënë - E Shtunë:</p>
-                  <p>09:00 - 19:00</p>
+                  <p className="text-stone-200 font-medium">{t.monSatHours}</p>
                 </div>
               </div>
               <div className="flex items-start gap-2 pt-1">
                 <Clock className="w-4 h-4 text-pink-500/70 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-stone-200 font-medium">E Diel:</p>
-                  <p>10:00 - 17:00 (Vetëm me Rezervim)</p>
+                  <p className="text-stone-200 font-medium">{t.sunHours} <span className="text-stone-400 text-[11px]">{t.sunByApptOnly}</span></p>
                 </div>
               </div>
             </div>
@@ -68,7 +69,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, isAdminLoggedIn }) 
 
           {/* Kontakti & Admin */}
           <div className="space-y-3">
-            <h4 className="text-sm font-bold text-white uppercase tracking-wider">Kontakti & Adresa</h4>
+            <h4 className="text-sm font-bold text-white uppercase tracking-wider">{t.contactAddressTitle}</h4>
             <div className="space-y-2.5 text-xs text-stone-400">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-pink-500 shrink-0" />
@@ -76,7 +77,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, isAdminLoggedIn }) 
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-pink-500 shrink-0" />
-                <span>+355 69 200 0000</span>
+                <span>{t.phone}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-pink-500 shrink-0" />
@@ -92,12 +93,12 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, isAdminLoggedIn }) 
                   {isAdminLoggedIn ? (
                     <>
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Hap Panelin e Administratorit</span>
+                      <span>{t.openAdminPanelBtn}</span>
                     </>
                   ) : (
                     <>
                       <Lock className="w-3.5 h-3.5 text-pink-400" />
-                      <span>Hyrja e Administratorit</span>
+                      <span>{t.adminLoginBtn}</span>
                     </>
                   )}
                 </button>
@@ -109,13 +110,13 @@ export const Footer: React.FC<FooterProps> = ({ onOpenAdmin, isAdminLoggedIn }) 
 
         {/* Bottom copy */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-stone-500 gap-4">
-          <p>© {new Date().getFullYear()} Elegance Sallon Bukurie. Të gjitha të drejtat të rezervuara.</p>
+          <p>© {new Date().getFullYear()} Elegance Sallon Bukurie. {t.rightsReserved}</p>
           <div className="flex items-center gap-4 text-stone-400">
-            <span>Privatësia</span>
+            <span>{t.privacyPolicy}</span>
             <span>•</span>
-            <span>Kushtet e Përdorimit</span>
+            <span>{t.termsOfUse}</span>
             <span>•</span>
-            <span className="text-pink-400">Tiranë, Shqipëri</span>
+            <span className="text-pink-400">{t.countryNotice}</span>
           </div>
         </div>
       </div>

@@ -2,10 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { 
   Sparkles, Calendar as CalendarIcon, Clock, User, Phone, Mail, 
   MessageSquare, CheckCircle2, ChevronRight, AlertCircle, ArrowLeft,
-  Scissors, Heart, Check, Share2, Printer
+  Check, Share2
 } from 'lucide-react';
 import { Appointment, BlockedSlot, SalonService } from '../types/salon';
 import { ALL_SERVICES, WORK_TIME_SLOTS, createAppointment } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 interface BookingFlowProps {
   appointments: Appointment[];
@@ -13,18 +14,13 @@ interface BookingFlowProps {
   onBookingSuccess: (newAppointment: Appointment) => void;
 }
 
-// Albanian Days and Months
-const ALBANIAN_DAYS_SHORT = ['Dje', 'Hën', 'Mar', 'Mër', 'Enj', 'Pre', 'Sht'];
-const ALBANIAN_MONTHS = [
-  'Janar', 'Shkurt', 'Mars', 'Prill', 'Maj', 'Qershor',
-  'Korrik', 'Gusht', 'Shtator', 'Tetor', 'Nëntor', 'Dhjetor'
-];
-
 export const BookingFlow: React.FC<BookingFlowProps> = ({
   appointments,
   blockedSlots,
   onBookingSuccess
 }) => {
+  const { t } = useLanguage();
+
   // Step: 1 = Service, 2 = Date & Time, 3 = Personal Info, 4 = Confirmation
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
@@ -67,15 +63,15 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
       const dateString = `${y}-${m}-${dayNum}`;
       list.push({
         dateString,
-        dayOfWeek: ALBANIAN_DAYS_SHORT[d.getDay()],
+        dayOfWeek: t.daysShort[d.getDay()],
         dayNumber: d.getDate(),
-        monthName: ALBANIAN_MONTHS[d.getMonth()],
+        monthName: t.months[d.getMonth()],
         isToday: i === 0,
         isTomorrow: i === 1
       });
     }
     return list;
-  }, []);
+  }, [t]);
 
   // Compute status for all time slots for selected date
   const timeSlotStatuses = useMemo(() => {
@@ -83,13 +79,13 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     
     return WORK_TIME_SLOTS.map(time => {
       if (isWholeDayBlocked) {
-        return { time, status: 'blocked' as const, reason: 'Dita është e bllokuar nga salloni' };
+        return { time, status: 'blocked' as const, reason: t.slotBlocked };
       }
 
       // Check specific slot blocked by admin
       const slotBlocked = blockedSlots.find(b => b.date === selectedDate && b.time === time);
       if (slotBlocked) {
-        return { time, status: 'blocked' as const, reason: slotBlocked.reason || 'I bllokuar nga administratori' };
+        return { time, status: 'blocked' as const, reason: slotBlocked.reason || t.slotBlocked };
       }
 
       // Check if already booked and active
@@ -97,12 +93,12 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
         a => a.date === selectedDate && a.time === time && a.status !== 'cancelled'
       );
       if (isBooked) {
-        return { time, status: 'booked' as const, reason: 'I rezervuar nga një kliente' };
+        return { time, status: 'booked' as const, reason: t.slotBooked };
       }
 
-      return { time, status: 'available' as const, reason: 'I lirë për rezervim' };
+      return { time, status: 'available' as const, reason: t.slotFree };
     });
-  }, [selectedDate, blockedSlots, appointments]);
+  }, [selectedDate, blockedSlots, appointments, t]);
 
   // Handle final submission
   const handleSubmitBooking = async (e: React.FormEvent) => {
@@ -110,20 +106,21 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     setErrorMessage(null);
 
     if (!clientName.trim()) {
-      setErrorMessage('Ju lutem shkruani Emrin dhe Mbiemrin tuaj.');
+      setErrorMessage(t.fullNamePlaceholder);
       return;
     }
     if (!clientPhone.trim() || clientPhone.trim().length < 6) {
-      setErrorMessage('Ju lutem vendosni një numër telefoni të vlefshëm.');
+      setErrorMessage(t.phonePlaceholder);
       return;
     }
     if (!selectedDate || !selectedTime) {
-      setErrorMessage('Ju lutem përzgjidhni datën dhe orarin.');
+      setErrorMessage(t.availableSlotsFor);
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const localizedService = (t.services as any)[selectedService.id] || selectedService;
       const res = await createAppointment({
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
@@ -136,11 +133,16 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
       });
 
       if (res.success && res.appointment) {
-        setConfirmedAppointment(res.appointment);
-        onBookingSuccess(res.appointment);
+        // Ensure serviceName matches current localized language
+        const appt = {
+          ...res.appointment,
+          serviceName: localizedService.name || res.appointment.serviceName
+        };
+        setConfirmedAppointment(appt);
+        onBookingSuccess(appt);
         setStep(4);
       } else {
-        setErrorMessage(res.message || 'Ndodhi një gabim gjatë rezervimit.');
+        setErrorMessage(res.message || 'Error');
       }
     } catch (err) {
       console.error('Submission error:', err);
@@ -161,21 +163,23 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     setErrorMessage(null);
   };
 
+  const selectedLocalizedService = (t.services as any)[selectedService.id] || selectedService;
+
   return (
-    <div id="booking-section" className="py-12 bg-white">
+    <div id="booking-section" className="py-12 bg-white scroll-mt-20">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Heading */}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-xs font-semibold uppercase tracking-wider mb-3">
             <Sparkles className="w-3.5 h-3.5" />
-            Rezervim i Thjeshtë & i Shpejtë
+            <span>{t.simpleFastBooking}</span>
           </div>
           <h2 className="font-serif-luxury text-3xl sm:text-4xl font-bold text-stone-900 tracking-tight">
-            Kalendari i Rezervimeve Online
+            {t.bookingTitle}
           </h2>
           <p className="mt-2 text-stone-600 text-sm sm:text-base">
-            Zgjidhni shërbimin, orarin që ju përshtatet më së miri dhe plotësoni të dhënat tuaja.
+            {t.bookingSubtitle}
           </p>
         </div>
 
@@ -191,10 +195,10 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
             ></div>
 
             {[
-              { num: 1, label: 'Shërbimi' },
-              { num: 2, label: 'Data & Ora' },
-              { num: 3, label: 'Të Dhënat' },
-              { num: 4, label: 'Konfirmimi' }
+              { num: 1, label: t.stepService },
+              { num: 2, label: t.stepDateTime },
+              { num: 3, label: t.stepInfo },
+              { num: 4, label: t.stepConfirm }
             ].map(s => {
               const isActive = step === s.num;
               const isDone = step > s.num;
@@ -229,16 +233,18 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
           <div className="space-y-6">
             <div className="flex items-center justify-between pb-2 border-b border-pink-100">
               <h3 className="font-serif-luxury text-xl font-bold text-stone-900">
-                1. Zgjidhni Shërbimin e Bukurisë
+                {t.selectBeautyService}
               </h3>
               <span className="text-xs text-pink-600 font-semibold bg-pink-50 px-3 py-1 rounded-full">
-                5 Shërbime Profesionale
+                {t.fiveServicesCount}
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {ALL_SERVICES.map(service => {
                 const isSelected = selectedService.id === service.id;
+                const localized = (t.services as any)[service.id] || service;
+
                 return (
                   <div
                     key={service.id}
@@ -253,15 +259,15 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                     <div className="relative h-44 overflow-hidden">
                       <img
                         src={service.image}
-                        alt={service.name}
+                        alt={localized.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-stone-900/80 via-stone-900/20 to-transparent"></div>
                       
                       {/* Category / Badge */}
-                      {service.badge && (
+                      {localized.badge && (
                         <div className="absolute top-3 left-3 bg-pink-600/90 backdrop-blur-xs text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-xs">
-                          {service.badge}
+                          {localized.badge}
                         </div>
                       )}
 
@@ -282,23 +288,23 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                     <div className="p-5">
                       <div className="flex items-center gap-2 text-xs font-semibold text-pink-600 mb-1.5">
                         <Clock className="w-3.5 h-3.5" />
-                        <span>Kohëzgjatja: {service.duration} minuta</span>
+                        <span>{t.durationLabel}: {service.duration} {t.minutesUnit}</span>
                       </div>
                       <h4 className="font-serif-luxury text-lg font-bold text-stone-900 mb-2 group-hover:text-pink-600 transition-colors">
-                        {service.name}
+                        {localized.name}
                       </h4>
                       <p className="text-xs text-stone-600 leading-relaxed line-clamp-2">
-                        {service.description}
+                        {localized.description}
                       </p>
 
                       <div className="mt-4 pt-3 border-t border-pink-50 flex items-center justify-between">
                         <span className="text-xs font-medium text-stone-500">
-                          Kategoria: <strong className="text-stone-800">{service.category}</strong>
+                          {t.categoryLabel}: <strong className="text-stone-800">{localized.category}</strong>
                         </span>
                         <span className={`text-xs font-semibold flex items-center gap-1 ${
                           isSelected ? 'text-pink-600' : 'text-stone-400 group-hover:text-pink-500'
                         }`}>
-                          {isSelected ? 'E Zgjedhur' : 'Zgjidh'}
+                          {isSelected ? t.selectedLabel : t.selectLabel}
                           <ChevronRight className="w-3.5 h-3.5" />
                         </span>
                       </div>
@@ -314,7 +320,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 onClick={() => setStep(2)}
                 className="px-8 py-3.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-medium text-sm shadow-md hover:shadow-pink-500/25 transition-all flex items-center gap-2"
               >
-                <span>Vazhdo te Data & Ora</span>
+                <span>{t.continueToDateTime}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -327,11 +333,10 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
             <div className="flex items-center justify-between pb-2 border-b border-pink-100">
               <div>
                 <h3 className="font-serif-luxury text-xl font-bold text-stone-900">
-                  2. Përzgjidhni Datën dhe Orarin e Lirë
+                  {t.stepDateTime}: {t.availableSlotsFor}
                 </h3>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  Shërbimi i zgjedhur:{' '}
-                  <span className="font-bold text-pink-600">{selectedService.name}</span> ({selectedService.duration} min • {selectedService.price} €)
+                  <span className="font-bold text-pink-600">{selectedLocalizedService.name}</span> ({selectedService.duration} {t.minutesUnit} • {selectedService.price} €)
                 </p>
               </div>
 
@@ -340,15 +345,15 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 className="text-xs text-stone-600 hover:text-pink-600 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-pink-200 bg-white"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                Ndrysho Shërbimin
+                {t.changeService}
               </button>
             </div>
 
-            {/* Date Selection Carousel / Buttons */}
+            {/* Date Selection Carousel */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-3 flex items-center gap-1.5">
                 <CalendarIcon className="w-4 h-4 text-pink-500" />
-                Zgjidhni Ditën:
+                {t.selectDay}
               </label>
 
               <div className="flex gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-thin">
@@ -370,7 +375,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                       <span className={`text-[11px] font-medium uppercase tracking-wider ${
                         isSelected ? 'text-pink-100' : 'text-pink-600'
                       }`}>
-                        {item.isToday ? 'Sot' : item.isTomorrow ? 'Nesër' : item.dayOfWeek}
+                        {item.isToday ? t.today : item.isTomorrow ? t.tomorrow : item.dayOfWeek}
                       </span>
                       <span className="text-xl font-bold my-0.5">{item.dayNumber}</span>
                       <span className={`text-[10px] ${isSelected ? 'text-pink-100' : 'text-stone-400'}`}>
@@ -388,11 +393,11 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 <div>
                   <h4 className="font-bold text-stone-900 text-sm sm:text-base flex items-center gap-2">
                     <Clock className="w-4 h-4 text-pink-500" />
-                    Oraret e Disponueshme për datën:{' '}
+                    <span>{t.availableSlotsFor}</span>{' '}
                     <span className="text-pink-600 font-semibold">{selectedDate}</span>
                   </h4>
                   <p className="text-xs text-stone-500 mt-0.5">
-                    Kliko mbi orarin e gjelbër për ta zgjedhur.
+                    {t.clickGreenSlot}
                   </p>
                 </div>
 
@@ -400,15 +405,15 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 <div className="flex items-center gap-3 text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
-                    <span className="text-stone-600">I Lirë</span>
+                    <span className="text-stone-600">{t.slotFree}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded-full bg-stone-300"></span>
-                    <span className="text-stone-600">I Rezervuar</span>
+                    <span className="text-stone-600">{t.slotBooked}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded-full bg-rose-300"></span>
-                    <span className="text-stone-600">I Bllokuar</span>
+                    <span className="text-stone-600">{t.slotBlocked}</span>
                   </div>
                 </div>
               </div>
@@ -417,7 +422,6 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {timeSlotStatuses.map(({ time, status, reason }) => {
                   const isSelected = selectedTime === time;
-                  const isAvailable = status === 'available';
 
                   if (status === 'blocked') {
                     return (
@@ -427,7 +431,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                         title={reason}
                       >
                         <span className="text-sm font-semibold line-through">{time}</span>
-                        <span className="text-[10px] text-rose-500 font-medium">I Bllokuar</span>
+                        <span className="text-[10px] text-rose-500 font-medium">{t.slotBlocked}</span>
                       </div>
                     );
                   }
@@ -440,7 +444,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                         title={reason}
                       >
                         <span className="text-sm font-medium">{time}</span>
-                        <span className="text-[10px] text-stone-500">I Rezervuar</span>
+                        <span className="text-[10px] text-stone-500">{t.slotBooked}</span>
                       </div>
                     );
                   }
@@ -458,7 +462,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                     >
                       <span className="text-base font-bold">{time}</span>
                       <span className={`text-[11px] font-medium ${isSelected ? 'text-pink-100' : 'text-emerald-600'}`}>
-                        {isSelected ? '✓ Zgjedhur' : 'I Lirë'}
+                        {isSelected ? t.slotSelected : t.slotFree}
                       </span>
                     </button>
                   );
@@ -473,7 +477,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 className="px-6 py-3 rounded-full border border-pink-200 text-stone-700 hover:text-pink-600 text-sm font-medium flex items-center gap-2 hover:bg-pink-50"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Mbrapa
+                {t.backBtn}
               </button>
 
               <button
@@ -485,7 +489,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                     : 'bg-stone-300 cursor-not-allowed text-stone-500'
                 }`}
               >
-                <span>Vazhdo te Të Dhënat</span>
+                <span>{t.continueToInfo}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -497,7 +501,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
           <div className="max-w-2xl mx-auto space-y-6">
             <div className="flex items-center justify-between pb-2 border-b border-pink-100">
               <h3 className="font-serif-luxury text-xl font-bold text-stone-900">
-                3. Të Dhënat Tuaja Personale
+                3. {t.stepInfo}
               </h3>
 
               <button
@@ -505,22 +509,22 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 className="text-xs text-stone-600 hover:text-pink-600 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-pink-200 bg-white"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                Ndrysho Orarin
+                {t.changeTime}
               </button>
             </div>
 
             {/* Summary Mini-Card */}
             <div className="bg-gradient-to-r from-pink-50 via-rose-50 to-pink-50 rounded-2xl p-4 border border-pink-100 flex items-center justify-between">
               <div>
-                <p className="text-xs text-stone-500 font-medium">Përmbledhje e Terminit:</p>
-                <h4 className="text-base font-bold text-stone-900">{selectedService.name}</h4>
+                <p className="text-xs text-stone-500 font-medium">{t.appointmentSummary}</p>
+                <h4 className="text-base font-bold text-stone-900">{selectedLocalizedService.name}</h4>
                 <p className="text-xs text-pink-600 font-semibold mt-0.5">
-                  📅 {selectedDate} në orën {selectedTime} ({selectedService.duration} min)
+                  📅 {selectedDate} {t.timeLabel.toLowerCase()} {selectedTime} ({selectedService.duration} {t.minutesUnit})
                 </p>
               </div>
               <div className="text-right">
                 <span className="text-2xl font-bold text-stone-900">{selectedService.price} €</span>
-                <p className="text-[10px] text-stone-400">Pagesa në sallon</p>
+                <p className="text-[10px] text-stone-400">{t.paymentAtSalon}</p>
               </div>
             </div>
 
@@ -536,14 +540,14 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                  Emri dhe Mbiemri <span className="text-pink-500">*</span>
+                  {t.fullNameLabel} <span className="text-pink-500">*</span>
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     required
-                    placeholder="p.sh. Valbona Krasniqi"
+                    placeholder={t.fullNamePlaceholder}
                     value={clientName}
                     onChange={e => setClientName(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-pink-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-hidden text-sm bg-white"
@@ -553,33 +557,33 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                  Numri i Telefonit (WhatsApp) <span className="text-pink-500">*</span>
+                  {t.phoneLabel} <span className="text-pink-500">*</span>
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="tel"
                     required
-                    placeholder="p.sh. +355 69 123 4567"
+                    placeholder={t.phonePlaceholder}
                     value={clientPhone}
                     onChange={e => setClientPhone(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-pink-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-hidden text-sm bg-white"
                   />
                 </div>
                 <p className="text-[11px] text-stone-400 mt-1">
-                  Do të merrni konfirmimin dhe njoftimin në këtë numër.
+                  {t.phoneNotice}
                 </p>
               </div>
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                  Email Adresa <span className="text-stone-400 text-[10px] font-normal">(Opsionale)</span>
+                  {t.emailLabel} <span className="text-stone-400 text-[10px] font-normal">{t.optionalLabel}</span>
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
-                    placeholder="valbona@example.com"
+                    placeholder="name@example.com"
                     value={clientEmail}
                     onChange={e => setClientEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-pink-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-hidden text-sm bg-white"
@@ -589,13 +593,13 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                  Kërkesa Shtesë ose Shënime <span className="text-stone-400 text-[10px] font-normal">(Opsionale)</span>
+                  {t.notesLabel} <span className="text-stone-400 text-[10px] font-normal">{t.optionalLabel}</span>
                 </label>
                 <div className="relative">
                   <MessageSquare className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5" />
                   <textarea
                     rows={3}
-                    placeholder="p.sh. Kam një event mbrëmjeje në orën 20:00, dëshiroj onde voluminoze..."
+                    placeholder={t.notesPlaceholder}
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-pink-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-hidden text-sm bg-white resize-none"
@@ -611,7 +615,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                   className="px-6 py-3 rounded-full border border-pink-200 text-stone-700 hover:text-pink-600 text-sm font-medium flex items-center gap-2 hover:bg-pink-50"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Mbrapa
+                  {t.backBtn}
                 </button>
 
                 <button
@@ -622,12 +626,12 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                   {isSubmitting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Po rezervohet...</span>
+                      <span>{t.bookingProcessing}</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Konfirmo Rezervimin Tani</span>
+                      <span>{t.confirmBookingBtn}</span>
                     </>
                   )}
                 </button>
@@ -647,10 +651,10 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 <Check className="w-8 h-8 stroke-[3]" />
               </div>
               <h3 className="font-serif-luxury text-2xl sm:text-3xl font-bold text-stone-900">
-                Termini u Rezervua me Sukses!
+                {t.bookingSuccessTitle}
               </h3>
               <p className="text-stone-600 text-xs sm:text-sm">
-                Faleminderit që zgjodhët <strong>Elegance Sallon Bukurie</strong>. Ju presim me kënaqësi!
+                {t.bookingSuccessDesc}
               </p>
             </div>
 
@@ -661,10 +665,10 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
               <div className="bg-gradient-to-r from-pink-500 to-rose-500 p-6 text-white text-center relative">
                 <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-pink-100 bg-white/20 px-3 py-1 rounded-full mb-2">
                   <Sparkles className="w-3.5 h-3.5" />
-                  Bileta Dixhitale e Terminit
+                  {t.digitalPassTitle}
                 </div>
                 <h4 className="font-serif-luxury text-2xl font-bold">Elegance Salon</h4>
-                <p className="text-xs text-pink-100">Kodi i Rezervimit: <strong>#{confirmedAppointment.id}</strong></p>
+                <p className="text-xs text-pink-100">{t.bookingCodeLabel} <strong>#{confirmedAppointment.id}</strong></p>
               </div>
 
               {/* Decorative ticket perforations */}
@@ -678,45 +682,45 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4 pb-4 border-b border-pink-100">
                   <div>
-                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">Klientja:</span>
+                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">{t.clientLabel}</span>
                     <strong className="text-sm text-stone-800">{confirmedAppointment.clientName}</strong>
                   </div>
                   <div>
-                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">Numri i Telefonit:</span>
+                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">{t.phoneConfirmedLabel}</span>
                     <strong className="text-sm text-stone-800">{confirmedAppointment.clientPhone}</strong>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pb-4 border-b border-pink-100">
                   <div>
-                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">Shërbimi:</span>
+                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">{t.serviceConfirmedLabel}</span>
                     <strong className="text-sm text-pink-600">{confirmedAppointment.serviceName}</strong>
                   </div>
                   <div>
-                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">Çmimi:</span>
+                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">{t.priceLabel}</span>
                     <strong className="text-sm text-stone-900">{confirmedAppointment.servicePrice} €</strong>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pb-4 border-b border-pink-100">
                   <div>
-                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">Data:</span>
+                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">{t.dateLabel}</span>
                     <strong className="text-sm text-stone-800">📅 {confirmedAppointment.date}</strong>
                   </div>
                   <div>
-                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">Ora e Fillimit:</span>
+                    <span className="text-[11px] text-stone-400 font-medium uppercase tracking-wider block">{t.timeLabel}</span>
                     <strong className="text-sm text-stone-800">⏰ {confirmedAppointment.time}</strong>
                   </div>
                 </div>
 
                 {confirmedAppointment.notes && (
                   <div className="p-3 rounded-xl bg-pink-50/60 text-xs text-stone-600">
-                    <span className="font-bold text-stone-700">Shënim:</span> {confirmedAppointment.notes}
+                    <span className="font-bold text-stone-700">{t.noteLabel}</span> {confirmedAppointment.notes}
                   </div>
                 )}
 
                 <div className="pt-2 text-center text-xs text-stone-500">
-                  📍 Adresa: Rruga Myslym Shyri, Nr. 45, Tiranë • 📞 +355 69 200 0000
+                  {t.salonAddressNotice}
                 </div>
               </div>
 
@@ -724,14 +728,14 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
               <div className="bg-pink-50/50 p-4 border-t border-pink-100 flex items-center justify-center sm:justify-end">
                 <a
                   href={`https://wa.me/355692000000?text=${encodeURIComponent(
-                    `Përshëndetje! Kam bërë një rezervim online me kod #${confirmedAppointment.id} për ${confirmedAppointment.serviceName} në datën ${confirmedAppointment.date} ora ${confirmedAppointment.time}.`
+                    `Buchung #${confirmedAppointment.id}: ${confirmedAppointment.serviceName} - ${confirmedAppointment.date} ${confirmedAppointment.time}.`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors"
                 >
                   <Share2 className="w-4 h-4" />
-                  Hap Konfirmimin në WhatsApp
+                  <span>{t.openInWhatsApp}</span>
                 </a>
               </div>
 
@@ -743,7 +747,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 onClick={resetForNewBooking}
                 className="px-8 py-3 rounded-full bg-pink-100 hover:bg-pink-200 text-pink-700 font-semibold text-xs tracking-wider uppercase transition-colors"
               >
-                + Bëj Një Rezervim Tjetër
+                {t.bookAnotherBtn}
               </button>
             </div>
 

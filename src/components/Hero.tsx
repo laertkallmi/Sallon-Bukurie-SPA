@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles, Calendar, Heart, Award, Shield } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface HeroProps {
   onStartBooking: () => void;
@@ -7,6 +8,8 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ onStartBooking, onExploreServices }) => {
+  const { t } = useLanguage();
+
   return (
     <div className="relative overflow-hidden bg-gradient-to-b from-rose-100/60 via-pink-50/40 to-white pt-8 pb-16 lg:pt-14 lg:pb-24 border-b border-pink-100/60">
       
@@ -24,22 +27,22 @@ export const Hero: React.FC<HeroProps> = ({ onStartBooking, onExploreServices })
             {/* Top Badge */}
             <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-white/90 border border-pink-200 shadow-xs text-xs font-semibold text-pink-600 tracking-wide">
               <Sparkles className="w-4 h-4 text-pink-500 animate-pulse" />
-              <span>Salloni Ekskluziv i Bukurisë për Femra</span>
+              <span>{t.exclusiveSalonBadge}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-pink-400"></span>
-              <span className="text-stone-500">Tiranë</span>
+              <span className="text-stone-500">{t.heroCity}</span>
             </div>
 
             {/* Main Title */}
             <h1 className="font-serif-luxury text-4xl sm:text-5xl lg:text-6xl text-stone-900 font-bold tracking-tight leading-[1.15]">
-              Bukuria dhe Eleganca{' '}
+              {t.heroTitle1}{' '}
               <span className="relative whitespace-nowrap text-transparent bg-clip-text bg-gradient-to-r from-pink-600 via-rose-500 to-pink-500">
-                që Meritoni
+                {t.heroTitleHighlight}
               </span>
             </h1>
 
-            {/* Subtitle in Albanian */}
+            {/* Subtitle */}
             <p className="text-base sm:text-lg text-stone-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-light">
-              Zgjidhni shërbimin tuaj të preferuar: stilim dhe zgjatim flokësh, grim profesional glamour, manikyr luksoz dhe zgjatim qerpikësh. Rezervoni orarin e lirë online me konfirmim të menjëhershëm.
+              {t.heroSubtitle}
             </p>
 
             {/* Action buttons */}
@@ -49,14 +52,14 @@ export const Hero: React.FC<HeroProps> = ({ onStartBooking, onExploreServices })
                 className="w-full sm:w-auto px-8 py-4 rounded-full bg-gradient-to-r from-pink-500 via-pink-600 to-rose-500 text-white font-medium text-base shadow-lg shadow-pink-500/25 hover:shadow-xl hover:shadow-pink-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
               >
                 <Calendar className="w-5 h-5 text-pink-100" />
-                <span>Rezervo Takimin Online</span>
+                <span>{t.heroBookBtn}</span>
               </button>
 
               <button
                 onClick={onExploreServices}
                 className="w-full sm:w-auto px-7 py-4 rounded-full bg-white text-stone-700 hover:text-pink-600 border border-pink-200 font-medium text-base shadow-xs hover:border-pink-300 hover:bg-pink-50/50 transition-all flex items-center justify-center gap-2"
               >
-                <span>Eksploro Shërbimet</span>
+                <span>{t.heroExploreBtn}</span>
               </button>
             </div>
 
@@ -67,8 +70,8 @@ export const Hero: React.FC<HeroProps> = ({ onStartBooking, onExploreServices })
                   <Award className="w-4 h-4" />
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold text-stone-900">100% Cilësi</p>
-                  <p className="text-[11px] text-stone-500">Produkte Premium</p>
+                  <p className="text-xs font-bold text-stone-900">{t.qualityBadge}</p>
+                  <p className="text-[11px] text-stone-500">{t.qualitySub}</p>
                 </div>
               </div>
 
@@ -77,8 +80,8 @@ export const Hero: React.FC<HeroProps> = ({ onStartBooking, onExploreServices })
                   <Calendar className="w-4 h-4" />
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold text-stone-900">Live Kalendar</p>
-                  <p className="text-[11px] text-stone-500">Orare të Lira</p>
+                  <p className="text-xs font-bold text-stone-900">{t.calendarBadge}</p>
+                  <p className="text-[11px] text-stone-500">{t.calendarSub}</p>
                 </div>
               </div>
 
@@ -87,8 +90,8 @@ export const Hero: React.FC<HeroProps> = ({ onStartBooking, onExploreServices })
                   <Shield className="w-4 h-4" />
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold text-stone-900">Higjienë & Kujdes</p>
-                  <p className="text-[11px] text-stone-500">Sterilizim i Plotë</p>
+                  <p className="text-xs font-bold text-stone-900">{t.hygieneBadge}</p>
+                  <p className="text-[11px] text-stone-500">{t.hygieneSub}</p>
                 </div>
               </div>
             </div>
@@ -122,7 +125,7 @@ export const Hero: React.FC<HeroProps> = ({ onStartBooking, onExploreServices })
                       ))}
                       <span className="text-xs font-bold text-stone-800 ml-1">4.9 / 5.0</span>
                     </div>
-                    <p className="text-xs text-stone-600 font-medium">Mbi 2,500+ kliente të lumtura</p>
+                    <p className="text-xs text-stone-600 font-medium">{t.reviewsCount}</p>
                   </div>
 
                   <div className="w-10 h-10 rounded-xl bg-pink-50 flex items-center justify-center text-pink-600">
@@ -138,8 +141,8 @@ export const Hero: React.FC<HeroProps> = ({ onStartBooking, onExploreServices })
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-stone-900">5 Shërbime Kryesore</p>
-                  <p className="text-[11px] text-pink-600 font-medium">Flokë • Grim • Thonj • Qerpikë</p>
+                  <p className="text-xs font-bold text-stone-900">{t.fiveCoreServices}</p>
+                  <p className="text-[11px] text-pink-600 font-medium">{t.servicesSubtitleShort}</p>
                 </div>
               </div>
 

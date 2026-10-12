@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Users, Calendar as CalendarIcon, Clock, Lock, Unlock, Phone, 
   MessageCircle, CheckCircle, XCircle, Trash2, Plus, Search, 
-  Filter, RefreshCw, LogOut, AlertTriangle, Sparkles, DollarSign,
+  Filter, RefreshCw, LogOut, Sparkles, DollarSign,
   ChevronLeft, ChevronRight, Check, ShieldAlert, Bell
 } from 'lucide-react';
 import { Appointment, BlockedSlot, AppointmentStatus, SalonService } from '../types/salon';
@@ -13,20 +13,18 @@ import {
   updateAppointmentStatus, 
   deleteAppointment, 
   createAppointment,
-  ALL_SERVICES,
+  ALL_SERVICES, 
   WORK_TIME_SLOTS 
 } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 interface AdminPanelProps {
   onLogout: () => void;
 }
 
-const ALBANIAN_MONTHS = [
-  'Janar', 'Shkurt', 'Mars', 'Prill', 'Maj', 'Qershor',
-  'Korrik', 'Gusht', 'Shtator', 'Tetor', 'Nëntor', 'Dhjetor'
-];
-
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
+  const { t } = useLanguage();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
@@ -48,119 +46,105 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
 
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
-  // Search & Filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | AppointmentStatus>('all');
-  const [serviceFilter, setServiceFilter] = useState<string>('all');
-  const [viewTab, setViewTab] = useState<'today' | 'calendar' | 'all' | 'manage_slots'>('today');
+  // Active view tab: 'today' | 'calendar' | 'manage_slots' | 'all'
+  const [viewTab, setViewTab] = useState<'today' | 'calendar' | 'manage_slots' | 'all'>('today');
 
-  // Manual Walk-in Modal State
-  const [showManualModal, setShowManualModal] = useState(false);
-  const [manualClientName, setManualClientName] = useState('');
-  const [manualClientPhone, setManualClientPhone] = useState('');
-  const [manualServiceId, setManualServiceId] = useState(ALL_SERVICES[0].id);
-  const [manualDate, setManualDate] = useState(todayStr);
-  const [manualTime, setManualTime] = useState('11:00');
-  const [manualNotes, setManualNotes] = useState('');
+  // Manual booking modal state
+  const [showManualModal, setShowManualModal] = useState<boolean>(false);
+  const [manualClientName, setManualClientName] = useState<string>('');
+  const [manualClientPhone, setManualClientPhone] = useState<string>('');
+  const [manualServiceId, setManualServiceId] = useState<string>(ALL_SERVICES[0].id);
+  const [manualDate, setManualDate] = useState<string>(todayStr);
+  const [manualTime, setManualTime] = useState<string>(WORK_TIME_SLOTS[0]);
+  const [manualNotes, setManualNotes] = useState<string>('');
   const [manualError, setManualError] = useState<string | null>(null);
 
-  // Fetch function
-  const loadData = async (silent = false) => {
-    if (!silent) setIsSyncing(true);
+  // Search & Filter in all appointments
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | AppointmentStatus>('all');
+
+  // Load appointments & blocked slots from API
+  const loadData = async (isPoll: boolean = false) => {
+    if (!isPoll) setIsSyncing(true);
     try {
-      const [appts, blk] = await Promise.all([
+      const [appts, blocked] = await Promise.all([
         fetchAppointments(),
         fetchBlockedSlots()
       ]);
 
-      // Check if any new appointment arrived compared to previous state
+      // Detect if another phone made a booking
       if (previousAppointmentsRef.current.length > 0) {
         const prevIds = new Set(previousAppointmentsRef.current.map(a => a.id));
-        const newOnes = appts.filter(a => !prevIds.has(a.id) && a.createdBy === 'client');
-        if (newOnes.length > 0) {
-          setNewBookingAlert(newOnes[0]);
+        const newlyAdded = appts.find(a => !prevIds.has(a.id) && a.createdBy === 'client');
+        if (newlyAdded) {
+          setNewBookingAlert(newlyAdded);
           setTimeout(() => setNewBookingAlert(null), 6000);
         }
       }
 
       previousAppointmentsRef.current = appts;
       setAppointments(appts);
-      setBlockedSlots(blk);
+      setBlockedSlots(blocked);
       setLastSyncTime(new Date());
-      setSyncCount(prev => prev + 1);
+      setSyncCount(c => c + 1);
     } catch (err) {
-      console.error('Polling error:', err);
+      console.error('Error syncing admin data:', err);
     } finally {
-      if (!silent) setIsSyncing(false);
+      if (!isPoll) setIsSyncing(false);
     }
   };
 
-  // Synchronisation every 2 seconds
+  // Initial load
   useEffect(() => {
     loadData(false);
-    const interval = setInterval(() => {
-      loadData(true);
-    }, 2000);
-
-    return () => clearInterval(interval);
   }, []);
 
-  // Today's appointments sorted by time
+  // Synchronisation every 2 seconds as requested
+  useEffect(() => {
+    const timer = setInterval(() => {
+      loadData(true);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Filter today's appointments
   const todayAppointments = useMemo(() => {
     return appointments
       .filter(a => a.date === todayStr)
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [appointments, todayStr]);
 
-  // Appointments for the currently selected date
+  // Selected date appointments
   const selectedDateAppointments = useMemo(() => {
     return appointments
       .filter(a => a.date === selectedDate)
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [appointments, selectedDate]);
 
-  // Today's statistics
+  // Calculate today stats
   const todayStats = useMemo(() => {
-    const active = todayAppointments.filter(a => a.status !== 'cancelled');
-    const revenue = active.reduce((sum, a) => sum + (a.servicePrice || 0), 0);
-    const pending = todayAppointments.filter(a => a.status === 'pending').length;
+    const count = todayAppointments.length;
     const confirmed = todayAppointments.filter(a => a.status === 'confirmed').length;
-    const completed = todayAppointments.filter(a => a.status === 'completed').length;
-    return {
-      count: todayAppointments.length,
-      revenue,
-      pending,
-      confirmed,
-      completed
-    };
+    const pending = todayAppointments.filter(a => a.status === 'pending').length;
+    const revenue = todayAppointments
+      .filter(a => a.status !== 'cancelled')
+      .reduce((acc, a) => acc + (a.servicePrice || 0), 0);
+    return { count, confirmed, pending, revenue };
   }, [todayAppointments]);
 
-  // Filtered appointments for "All Appointments" table
-  const filteredAppointments = useMemo(() => {
-    return appointments.filter(a => {
-      const matchesSearch = 
-        a.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.clientPhone.includes(searchQuery) ||
-        a.id.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesStatus = statusFilter === 'all' || a.status === statusFilter;
-      const matchesService = serviceFilter === 'all' || a.serviceId === serviceFilter;
-
-      return matchesSearch && matchesStatus && matchesService;
-    });
-  }, [appointments, searchQuery, statusFilter, serviceFilter]);
-
-  // Status changer handler
+  // Handle changing appointment status
   const handleStatusChange = async (id: string, newStatus: AppointmentStatus) => {
     const success = await updateAppointmentStatus(id, newStatus);
     if (success) {
-      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+      setAppointments(prev =>
+        prev.map(a => (a.id === id ? { ...a, status: newStatus } : a))
+      );
     }
   };
 
-  // Delete handler
+  // Handle deleting appointment
   const handleDelete = async (id: string) => {
-    if (window.confirm('A jeni të sigurt që dëshironi të fshini këtë termin?')) {
+    if (window.confirm(t.admin.confirmDeleteMsg)) {
       const success = await deleteAppointment(id);
       if (success) {
         setAppointments(prev => prev.filter(a => a.id !== id));
@@ -168,53 +152,81 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
     }
   };
 
-  // Toggle Slot Blocked/Free for selectedDate
+  // Handle toggling slot block
   const handleToggleBlock = async (time?: string) => {
-    const res = await toggleSlotBlocked({
-      date: selectedDate,
-      time,
-      reason: 'I bllokuar nga administratori'
-    });
+    const res = await toggleSlotBlocked({ date: selectedDate, time });
     if (res.success && res.blockedSlots) {
       setBlockedSlots(res.blockedSlots);
-    } else {
-      loadData(false);
     }
   };
 
-  // Check if slot is blocked for selectedDate
+  // Check if whole day is blocked
   const isWholeDayBlocked = useMemo(() => {
     return blockedSlots.some(b => b.date === selectedDate && !b.time);
   }, [blockedSlots, selectedDate]);
 
-  // Handle adding manual walk-in appointment
+  // Filtered all appointments
+  const filteredAppointments = useMemo(() => {
+    return appointments.filter(a => {
+      const matchSearch =
+        a.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.clientPhone.includes(searchQuery) ||
+        a.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.serviceName.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchStatus = statusFilter === 'all' || a.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [appointments, searchQuery, statusFilter]);
+
+  // Handle Create Manual Appointment
   const handleCreateManualAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     setManualError(null);
 
     if (!manualClientName.trim() || !manualClientPhone.trim()) {
-      setManualError('Plotësoni emrin dhe telefonin e klientit.');
+      setManualError(t.fullNamePlaceholder);
       return;
     }
+
+    const service = ALL_SERVICES.find(s => s.id === manualServiceId) || ALL_SERVICES[0];
+    const localizedSrv = (t.services as any)[service.id] || service;
 
     const res = await createAppointment({
       clientName: manualClientName.trim(),
       clientPhone: manualClientPhone.trim(),
-      serviceId: manualServiceId,
+      serviceId: service.id,
       date: manualDate,
       time: manualTime,
-      notes: manualNotes.trim() ? `[Walk-in / Telefonatë]: ${manualNotes.trim()}` : '[Walk-in / Telefonatë]',
+      notes: manualNotes.trim() ? `[Manual] ${manualNotes.trim()}` : '[Manual / Walk-in]',
       createdBy: 'admin'
     });
 
     if (res.success && res.appointment) {
+      const updatedAppt = {
+        ...res.appointment,
+        serviceName: localizedSrv.name || res.appointment.serviceName
+      };
+      setAppointments(prev => [updatedAppt, ...prev]);
       setShowManualModal(false);
       setManualClientName('');
       setManualClientPhone('');
       setManualNotes('');
-      loadData(false);
     } else {
-      setManualError(res.message || 'Ndodhi një gabim gjatë krijimit.');
+      setManualError(res.message);
+    }
+  };
+
+  const getStatusBadge = (st: AppointmentStatus) => {
+    switch (st) {
+      case 'confirmed':
+        return <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">{t.admin.statusConfirmed}</span>;
+      case 'pending':
+        return <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{t.admin.statusPending}</span>;
+      case 'completed':
+        return <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700">{t.admin.statusCompleted}</span>;
+      case 'cancelled':
+        return <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700">{t.admin.statusCancelled}</span>;
     }
   };
 
@@ -229,12 +241,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
           </div>
           <div className="flex-1">
             <h5 className="text-sm font-bold text-stone-900 flex items-center gap-1.5">
-              <span>🔔 Rezervim i Ri Online!</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-semibold">Tani</span>
+              <span>🔔 {t.admin.newBookingToastTitle}</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-semibold">{t.admin.newBookingToastNow}</span>
             </h5>
             <p className="text-xs text-stone-600 mt-0.5">
-              Klientja <strong>{newBookingAlert.clientName}</strong> sapo rezervoi{' '}
-              <strong>{newBookingAlert.serviceName}</strong> për datën <strong>{newBookingAlert.date}</strong> në orën <strong>{newBookingAlert.time}</strong>.
+              <strong>{newBookingAlert.clientName}</strong> {t.admin.newBookingToastDesc}{' '}
+              <strong>{newBookingAlert.serviceName}</strong> ({newBookingAlert.date} • {newBookingAlert.time}).
             </p>
           </div>
           <button
@@ -256,7 +268,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
             </div>
             <div>
               <h2 className="font-serif-luxury text-lg font-bold text-stone-900 flex items-center gap-2">
-                <span>Paneli i Administratorit</span>
+                <span>{t.admin.dashboardTitle}</span>
               </h2>
               <div className="flex items-center gap-2 text-[11px] text-stone-500">
                 {/* 2-second synchronisation live indicator */}
@@ -265,29 +277,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                   </span>
-                  Sinkronizimi aktiv (çdo 2s)
+                  {t.admin.liveSync}
                 </span>
                 <span>•</span>
-                <span>Përditësuar: {lastSyncTime.toLocaleTimeString()}</span>
+                <span>{t.admin.lastUpdated} {lastSyncTime.toLocaleTimeString()}</span>
               </div>
             </div>
           </div>
 
-          {/* Quick Actions in Header */}
-          <div className="flex items-center gap-2">
+          {/* Quick Actions & Language in Admin Header */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <LanguageSwitcher />
+
             <button
               onClick={() => setShowManualModal(true)}
               className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
-              <span>Shto Termim (Walk-In)</span>
+              <span>{t.admin.manualBookingTab}</span>
             </button>
 
             <button
               onClick={() => loadData(false)}
               disabled={isSyncing}
               className="p-2 rounded-xl border border-pink-200 bg-pink-50 hover:bg-pink-100 text-pink-700 transition-colors"
-              title="Rifresko Tani"
+              title={t.admin.liveSync}
             >
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
             </button>
@@ -297,7 +311,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               className="px-3.5 py-2 rounded-xl border border-stone-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-stone-600 hover:text-rose-600 text-xs font-semibold flex items-center gap-1.5 transition-colors"
             >
               <LogOut className="w-4 h-4" />
-              <span>Dil</span>
+              <span>{t.admin.logout}</span>
             </button>
           </div>
 
@@ -306,10 +320,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         {/* Tab Sub-navigation */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-pink-50 flex gap-2 py-2 overflow-x-auto">
           {[
-            { id: 'today', label: `🌟 Kush Vjen Sot (${todayStats.count})` },
-            { id: 'calendar', label: '📅 Kalendari Ditës' },
-            { id: 'manage_slots', label: '🔒 Blloko / Zhblloko Orare' },
-            { id: 'all', label: `📋 Të Gjitha Terminet (${appointments.length})` }
+            { id: 'today', label: `🌟 ${t.admin.whoComesToday} (${todayStats.count})` },
+            { id: 'calendar', label: `📅 ${t.dateLabel}` },
+            { id: 'manage_slots', label: `🔒 ${t.admin.blockSlotsTab}` },
+            { id: 'all', label: `📋 ${t.admin.allBookingsTab} (${appointments.length})` }
           ].map(tab => (
             <button
               key={tab.id}
@@ -333,48 +347,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
           
           <div className="bg-white rounded-2xl p-4 border border-pink-100 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Takimet Sot</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">{t.admin.todayAppointments}</span>
               <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center">
                 <Users className="w-4 h-4" />
               </div>
             </div>
             <p className="text-2xl font-bold text-stone-900 mt-2">{todayStats.count}</p>
             <p className="text-[11px] text-stone-500 mt-0.5">
-              {todayStats.confirmed} të konfirmuara • {todayStats.pending} në pritje
+              {todayStats.confirmed} {t.admin.statusConfirmed} • {todayStats.pending} {t.admin.statusPending}
             </p>
           </div>
 
           <div className="bg-white rounded-2xl p-4 border border-pink-100 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Të Ardhura Sot</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">{t.admin.todayRevenue}</span>
               <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
                 <DollarSign className="w-4 h-4" />
               </div>
             </div>
             <p className="text-2xl font-bold text-stone-900 mt-2">{todayStats.revenue} €</p>
-            <p className="text-[11px] text-stone-500 mt-0.5">Parashikimi për oraret aktive</p>
+            <p className="text-[11px] text-stone-500 mt-0.5">{todayStats.count} {t.durationLabel.toLowerCase()}</p>
           </div>
 
           <div className="bg-white rounded-2xl p-4 border border-pink-100 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Në Pritje</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">{t.admin.pendingCount}</span>
               <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
                 <Clock className="w-4 h-4" />
               </div>
             </div>
             <p className="text-2xl font-bold text-stone-900 mt-2">{todayStats.pending}</p>
-            <p className="text-[11px] text-stone-500 mt-0.5">Kërkojnë konfirmim me telefon</p>
+            <p className="text-[11px] text-stone-500 mt-0.5">{t.admin.statusPending}</p>
           </div>
 
           <div className="bg-white rounded-2xl p-4 border border-pink-100 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Gjithsej në Sistem</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">{t.admin.allAppointments}</span>
               <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
                 <CalendarIcon className="w-4 h-4" />
               </div>
             </div>
             <p className="text-2xl font-bold text-stone-900 mt-2">{appointments.length}</p>
-            <p className="text-[11px] text-stone-500 mt-0.5">Sinkronizuar në kohë reale</p>
+            <p className="text-[11px] text-stone-500 mt-0.5">{t.admin.liveSync}</p>
           </div>
 
         </div>
@@ -388,11 +402,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-pulse"></span>
                     <h3 className="font-serif-luxury text-2xl font-bold text-stone-900">
-                      Kush Vjen Sot në Sallon?
+                      {t.admin.whoComesToday}
                     </h3>
                   </div>
                   <p className="text-xs text-stone-500 mt-1">
-                    Orari ditor kronologjik për datën e sotme: <strong className="text-pink-600">{todayStr}</strong>
+                    {t.admin.whoComesTodayDesc} <strong className="text-pink-600">{todayStr}</strong>
                   </p>
                 </div>
 
@@ -402,7 +416,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                     className="px-3.5 py-1.5 rounded-xl border border-pink-200 text-xs font-semibold text-pink-700 bg-pink-50 hover:bg-pink-100 transition-colors flex items-center gap-1.5"
                   >
                     <Lock className="w-3.5 h-3.5" />
-                    Menaxho Orare të Lira / Bllokuara
+                    {t.admin.blockSlotsTab}
                   </button>
                 </div>
               </div>
@@ -412,24 +426,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                   <div className="w-16 h-16 rounded-full bg-pink-50 flex items-center justify-center mx-auto text-pink-400">
                     <CalendarIcon className="w-8 h-8" />
                   </div>
-                  <h4 className="text-base font-bold text-stone-800">Nuk ka asnjë termin për sot ende!</h4>
-                  <p className="text-xs max-w-sm mx-auto text-stone-500">
-                    Klientët mund të rezervojnë online në çdo moment, ose shtoni një takim manual me butonin më sipër.
-                  </p>
+                  <h4 className="text-base font-bold text-stone-800">{t.admin.noApptsToday}</h4>
                   <button
                     onClick={() => setShowManualModal(true)}
                     className="px-5 py-2.5 rounded-full bg-pink-600 text-white text-xs font-semibold hover:bg-pink-700 transition-colors"
                   >
-                    + Shto Termim Manual
+                    {t.admin.manualBookingTab}
                   </button>
                 </div>
               ) : (
                 <div className="mt-6 space-y-4">
-                  {todayAppointments.map((item, index) => {
+                  {todayAppointments.map((item) => {
                     const isCompleted = item.status === 'completed';
                     const isCancelled = item.status === 'cancelled';
                     const isConfirmed = item.status === 'confirmed';
-                    const isPending = item.status === 'pending';
 
                     return (
                       <div
@@ -449,7 +459,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                           {/* Time & Client info */}
                           <div className="flex items-start gap-4">
                             <div className="flex flex-col items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-500 text-white shadow-xs shrink-0">
-                              <span className="text-xs uppercase font-medium">Ora</span>
+                              <span className="text-[10px] uppercase font-medium">{t.timeLabel}</span>
                               <span className="text-lg font-bold">{item.time}</span>
                             </div>
 
@@ -472,13 +482,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                                 {item.clientEmail && (
                                   <span className="text-stone-400">({item.clientEmail})</span>
                                 )}
-                                <span className="text-stone-400">• Kohëzgjatja: {item.serviceDuration} min</span>
-                                <span className="text-stone-400">• Kod: #{item.id}</span>
+                                <span className="text-stone-400">• {item.serviceDuration} {t.minutesUnit}</span>
+                                <span className="text-stone-400">• #{item.id}</span>
                               </div>
 
                               {item.notes && (
                                 <p className="text-xs text-stone-600 bg-pink-50/60 rounded-lg p-2 mt-1 border border-pink-100">
-                                  <span className="font-semibold text-pink-700">Shënim:</span> {item.notes}
+                                  <span className="font-semibold text-pink-700">{t.noteLabel}</span> {item.notes}
                                 </p>
                               )}
                             </div>
@@ -491,24 +501,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                             <a
                               href={`tel:${item.clientPhone}`}
                               className="px-3 py-2 rounded-xl bg-white border border-stone-200 hover:border-pink-300 text-stone-700 hover:text-pink-600 text-xs font-semibold flex items-center gap-1.5 shadow-2xs"
-                              title="Telefono Klienten"
+                              title={t.admin.callBtn}
                             >
                               <Phone className="w-3.5 h-3.5 text-pink-500" />
-                              <span className="hidden sm:inline">Telefono</span>
+                              <span className="hidden sm:inline">{t.admin.callBtn}</span>
                             </a>
 
                             {/* WhatsApp button */}
                             <a
                               href={`https://wa.me/${item.clientPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                                `Përshëndetje ${item.clientName}! Ju kujtojmë terminin tuaj sot në orën ${item.time} për ${item.serviceName} tek Sallon Elegance. Ju mirëpresim!`
+                                `Elegance Salon: ${item.clientName}, ${item.time} - ${item.serviceName}.`
                               )}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs"
-                              title="Dërgo mesazh WhatsApp"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
+                              <span>{t.admin.whatsAppBtn}</span>
                             </a>
 
                             {/* Status Changer Actions */}
@@ -520,9 +529,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                                     ? 'bg-pink-600 text-white shadow-2xs'
                                     : 'text-stone-600 hover:text-pink-600'
                                 }`}
-                                title="Konfirmo"
                               >
-                                Konfirmuar
+                                {t.admin.statusConfirmed}
                               </button>
 
                               <button
@@ -532,9 +540,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                                     ? 'bg-emerald-600 text-white shadow-2xs'
                                     : 'text-stone-600 hover:text-emerald-600'
                                 }`}
-                                title="Shëno si Përfunduar"
                               >
-                                Përfunduar
+                                {t.admin.statusCompleted}
                               </button>
 
                               <button
@@ -544,9 +551,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                                     ? 'bg-rose-600 text-white shadow-2xs'
                                     : 'text-stone-600 hover:text-rose-600'
                                 }`}
-                                title="Anulo"
                               >
-                                Anulo
+                                {t.admin.statusCancelled}
                               </button>
                             </div>
 
@@ -554,7 +560,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                             <button
                               onClick={() => handleDelete(item.id)}
                               className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                              title="Fshi terminin"
+                              title={t.admin.deleteBtn}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -580,10 +586,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-pink-100 gap-3">
                 <div>
                   <h3 className="font-serif-luxury text-2xl font-bold text-stone-900">
-                    Kalendari Sipas Ditëve
+                    {t.admin.whoComesToday}
                   </h3>
                   <p className="text-xs text-stone-500 mt-0.5">
-                    Zgjidhni datën për të parë agjendën e termineve dhe klientët.
+                    {t.admin.manageSlotsDesc}
                   </p>
                 </div>
 
@@ -596,7 +602,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                         : 'bg-white text-stone-700 border-stone-200 hover:bg-pink-50'
                     }`}
                   >
-                    Sot
+                    {t.today}
                   </button>
                   <input
                     type="date"
@@ -611,13 +617,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               <div className="mt-6">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="text-sm font-bold text-stone-800">
-                    Terminet për datën: <span className="text-pink-600">{selectedDate}</span> ({selectedDateAppointments.length})
+                    {t.dateLabel}: <span className="text-pink-600">{selectedDate}</span> ({selectedDateAppointments.length})
                   </h4>
                 </div>
 
                 {selectedDateAppointments.length === 0 ? (
                   <div className="py-12 text-center text-stone-400">
-                    <p className="text-sm">Nuk ka asnjë termin për këtë datë.</p>
+                    <p className="text-sm">{t.admin.noApptsToday}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -639,22 +645,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
-                            item.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
-                            item.status === 'completed' ? 'bg-purple-100 text-purple-700' :
-                            item.status === 'cancelled' ? 'bg-rose-100 text-rose-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                            {item.status === 'confirmed' ? 'Konfirmuar' :
-                             item.status === 'completed' ? 'Përfunduar' :
-                             item.status === 'cancelled' ? 'Anuluar' : 'Në Pritje'}
-                          </span>
-
+                          {getStatusBadge(item.status)}
                           <button
                             onClick={() => handleStatusChange(item.id, item.status === 'confirmed' ? 'completed' : 'confirmed')}
                             className="px-3 py-1.5 rounded-xl bg-white border border-stone-200 text-xs font-semibold hover:border-pink-300"
                           >
-                            Ndrysho Statusin
+                            {t.admin.statusLabel}
                           </button>
                         </div>
                       </div>
@@ -675,10 +671,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-pink-100 gap-3">
                 <div>
                   <h3 className="font-serif-luxury text-2xl font-bold text-stone-900">
-                    Menaxhimi i Orareve: Blloko ose Liro
+                    {t.admin.manageSlotsTitle}
                   </h3>
                   <p className="text-xs text-stone-500 mt-0.5">
-                    Kontrolloni lehtësisht cilat orare dëshironi t'i keni të lira apo të bllokuara për rezervime nga klientët.
+                    {t.admin.manageSlotsDesc}
                   </p>
                 </div>
 
@@ -700,7 +696,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                     }`}
                   >
                     {isWholeDayBlocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                    <span>{isWholeDayBlocked ? 'Zhblloko Gjithë Ditën' : 'Blloko Gjithë Ditën (Pushim)'}</span>
+                    <span>{isWholeDayBlocked ? t.admin.unblockWholeDay : t.admin.blockWholeDay}</span>
                   </button>
                 </div>
               </div>
@@ -710,7 +706,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                 <div className="mt-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>
-                    Kjo ditë (<strong>{selectedDate}</strong>) është shënuar si <strong>E BLLOKUAR TËRËSISHT</strong>. Klientët nuk mund të rezervojnë asnjë orar në këtë ditë.
+                    {selectedDate} • {t.admin.statusBlocked}
                   </span>
                 </div>
               )}
@@ -739,15 +735,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                         {isBlocked ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 flex items-center gap-1">
                             <Lock className="w-3 h-3" />
-                            I Bllokuar
+                            {t.admin.statusBlocked}
                           </span>
                         ) : bookedAppt ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                            I Rezervuar
+                            {t.admin.statusConfirmed}
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                            I Lirë
+                            {t.admin.statusFree}
                           </span>
                         )}
                       </div>
@@ -759,7 +755,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                         </div>
                       ) : (
                         <div className="text-xs text-stone-400 my-2">
-                          {isBlocked ? 'Orari nuk është i hapur për rezervime' : 'I hapur për rezervime online'}
+                          {isBlocked ? t.admin.statusBlocked : t.admin.statusFree}
                         </div>
                       )}
 
@@ -775,12 +771,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                         {isBlocked ? (
                           <>
                             <Unlock className="w-3.5 h-3.5" />
-                            <span>Zhblloko (Bëje të Lirë)</span>
+                            <span>{t.admin.statusFree}</span>
                           </>
                         ) : (
                           <>
                             <Lock className="w-3.5 h-3.5" />
-                            <span>Blloko Këtë Orar</span>
+                            <span>{t.admin.statusBlocked}</span>
                           </>
                         )}
                       </button>
@@ -801,10 +797,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-4 border-b border-pink-100 gap-4">
                 <div>
                   <h3 className="font-serif-luxury text-2xl font-bold text-stone-900">
-                    Regjistri i Plotë i Termineve
+                    {t.admin.allBookingsTab}
                   </h3>
                   <p className="text-xs text-stone-500 mt-0.5">
-                    Kërkoni, filtroni dhe menaxhoni të gjitha rezervimet e klientëve.
+                    {t.admin.searchPlaceholder}
                   </p>
                 </div>
 
@@ -813,7 +809,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                   <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Kërko me emër, telefon, kod..."
+                    placeholder={t.admin.searchPlaceholder}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 rounded-xl border border-pink-200 text-xs bg-white focus:outline-pink-500"
@@ -825,7 +821,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               <div className="flex flex-wrap items-center gap-3 my-4">
                 <div className="flex items-center gap-1.5 text-xs text-stone-500">
                   <Filter className="w-3.5 h-3.5" />
-                  <span>Statusi:</span>
+                  <span>{t.admin.statusLabel}:</span>
                 </div>
                 {['all', 'pending', 'confirmed', 'completed', 'cancelled'].map(st => (
                   <button
@@ -837,10 +833,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                         : 'bg-stone-100 text-stone-600 hover:bg-pink-50'
                     }`}
                   >
-                    {st === 'all' ? 'Të Gjitha' :
-                     st === 'pending' ? 'Në Pritje' :
-                     st === 'confirmed' ? 'Konfirmuar' :
-                     st === 'completed' ? 'Përfunduar' : 'Anuluar'}
+                    {st === 'all' ? t.admin.filterAll :
+                     st === 'pending' ? t.admin.statusPending :
+                     st === 'confirmed' ? t.admin.statusConfirmed :
+                     st === 'completed' ? t.admin.statusCompleted : t.admin.statusCancelled}
                   </button>
                 ))}
               </div>
@@ -850,20 +846,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-pink-50/60 text-stone-600 uppercase font-bold text-[10px] tracking-wider border-y border-pink-100">
                     <tr>
-                      <th className="py-3 px-4">Kodi & Data</th>
-                      <th className="py-3 px-4">Klientja</th>
-                      <th className="py-3 px-4">Kontakti</th>
-                      <th className="py-3 px-4">Shërbimi</th>
-                      <th className="py-3 px-4">Çmimi</th>
-                      <th className="py-3 px-4">Statusi</th>
-                      <th className="py-3 px-4 text-right">Veprime</th>
+                      <th className="py-3 px-4">{t.bookingCodeLabel} & {t.dateLabel}</th>
+                      <th className="py-3 px-4">{t.clientLabel}</th>
+                      <th className="py-3 px-4">{t.phoneLabel}</th>
+                      <th className="py-3 px-4">{t.serviceConfirmedLabel}</th>
+                      <th className="py-3 px-4">{t.priceLabel}</th>
+                      <th className="py-3 px-4">{t.admin.statusLabel}</th>
+                      <th className="py-3 px-4 text-right">{t.admin.actionsLabel}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-pink-50">
                     {filteredAppointments.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="py-10 text-center text-stone-400">
-                          Nuk u gjet asnjë termin me këto kritere.
+                          {t.admin.noApptsToday}
                         </td>
                       </tr>
                     ) : (
@@ -895,16 +891,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                           </td>
 
                           <td className="py-3.5 px-4">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                              appt.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
-                              appt.status === 'completed' ? 'bg-purple-100 text-purple-700' :
-                              appt.status === 'cancelled' ? 'bg-rose-100 text-rose-700' :
-                              'bg-amber-100 text-amber-700'
-                            }`}>
-                              {appt.status === 'confirmed' ? 'Konfirmuar' :
-                               appt.status === 'completed' ? 'Përfunduar' :
-                               appt.status === 'cancelled' ? 'Anuluar' : 'Në Pritje'}
-                            </span>
+                            {getStatusBadge(appt.status)}
                           </td>
 
                           <td className="py-3.5 px-4 text-right">
@@ -912,21 +899,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                               <button
                                 onClick={() => handleStatusChange(appt.id, 'confirmed')}
                                 className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600"
-                                title="Konfirmo"
+                                title={t.admin.statusConfirmed}
                               >
                                 <CheckCircle className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleStatusChange(appt.id, 'cancelled')}
                                 className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-600"
-                                title="Anulo"
+                                title={t.admin.statusCancelled}
                               >
                                 <XCircle className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDelete(appt.id)}
                                 className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-700"
-                                title="Fshi"
+                                title={t.admin.deleteBtn}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -952,7 +939,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
             <div className="flex items-center justify-between pb-3 border-b border-pink-100 mb-4">
               <h4 className="font-serif-luxury text-lg font-bold text-stone-900 flex items-center gap-2">
                 <Plus className="w-5 h-5 text-pink-600" />
-                Shto Termim të Ri (Walk-In)
+                {t.admin.manualTitle}
               </h4>
               <button
                 onClick={() => setShowManualModal(false)}
@@ -970,11 +957,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
 
             <form onSubmit={handleCreateManualAppointment} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">Emri i Klientes *</label>
+                <label className="block text-xs font-bold text-stone-700 mb-1">{t.fullNameLabel} *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Emër Mbiemër"
+                  placeholder={t.fullNamePlaceholder}
                   value={manualClientName}
                   onChange={e => setManualClientName(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-pink-200 text-xs focus:outline-pink-500"
@@ -982,11 +969,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">Numri i Telefonit *</label>
+                <label className="block text-xs font-bold text-stone-700 mb-1">{t.phoneLabel} *</label>
                 <input
                   type="tel"
                   required
-                  placeholder="+355 69 ..."
+                  placeholder={t.phonePlaceholder}
                   value={manualClientPhone}
                   onChange={e => setManualClientPhone(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-pink-200 text-xs focus:outline-pink-500"
@@ -994,23 +981,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">Shërbimi *</label>
+                <label className="block text-xs font-bold text-stone-700 mb-1">{t.stepService} *</label>
                 <select
                   value={manualServiceId}
                   onChange={e => setManualServiceId(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-pink-200 text-xs bg-white focus:outline-pink-500"
                 >
-                  {ALL_SERVICES.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.price} € - {s.duration} min)
-                    </option>
-                  ))}
+                  {ALL_SERVICES.map(s => {
+                    const loc = (t.services as any)[s.id] || s;
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {loc.name} ({s.price} € - {s.duration} {t.minutesUnit})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">Data *</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">{t.dateLabel} *</label>
                   <input
                     type="date"
                     required
@@ -1021,24 +1011,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">Ora *</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">{t.timeLabel} *</label>
                   <select
                     value={manualTime}
                     onChange={e => setManualTime(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-pink-200 text-xs bg-white"
                   >
-                    {WORK_TIME_SLOTS.map(t => (
-                      <option key={t} value={t}>{t}</option>
+                    {WORK_TIME_SLOTS.map(tSlot => (
+                      <option key={tSlot} value={tSlot}>{tSlot}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">Shënime Shtesë</label>
+                <label className="block text-xs font-bold text-stone-700 mb-1">{t.notesLabel}</label>
                 <input
                   type="text"
-                  placeholder="p.sh. Klientja erdhi në sallon ose telefonoi"
+                  placeholder={t.notesPlaceholder}
                   value={manualNotes}
                   onChange={e => setManualNotes(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-pink-200 text-xs focus:outline-pink-500"
@@ -1051,13 +1041,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                   onClick={() => setShowManualModal(false)}
                   className="px-4 py-2 rounded-xl border border-stone-200 text-xs font-medium text-stone-600 hover:bg-stone-50"
                 >
-                  Anulo
+                  {t.backBtn}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-pink-600 text-white text-xs font-bold hover:bg-pink-700 shadow-xs"
                 >
-                  Regjistro Terminin
+                  {t.admin.saveBookingBtn}
                 </button>
               </div>
             </form>
